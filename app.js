@@ -1,105 +1,100 @@
 // app.js — Gerador de Pictogramas AAC
-// Busca IDs em tempo real via API ARASAAC + cache localStorage
+// A API ARASAAC /bestsearch retorna um ARRAY ordenado por relevância.
+// Selecionamos o melhor item priorizando aac:true (pictogramas de CAA).
 
 const CORES = ['#5DCAA5','#85B7EB','#F0997B','#FAC775','#AFA9EC','#ED93B1','#97C459','#F7C1C1'];
 const HISTORICO_KEY = 'picto_historico';
-const CACHE_KEY = 'picto_cache_ids';
+const CACHE_KEY = 'picto_cache_v2';
 const API_BASE = 'https://api.arasaac.org/v1';
 
 function $(id) { return document.getElementById(id); }
 function setSt(txt) { $('st').textContent = txt; $('stWrap').style.display = txt ? 'block' : 'none'; }
 function imgUrl(id) { return `${API_BASE}/pictograms/${id}?download=false`; }
-
 function normaliza(str) {
   return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
 }
 
-// ── Cache de IDs em localStorage ─────────────────────────────────────────────
-
+// ── Cache ─────────────────────────────────────────────────────────────────────
 function getCache() {
-  try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; }
-  catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch { return {}; }
 }
-function setCache(cache) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch {}
+function setCache(c) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch {}
 }
 
-// ── Busca ID via API ARASAAC ──────────────────────────────────────────────────
+// ── Seleciona melhor pictograma do array retornado pela API ───────────────────
+function melhorResultado(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  // Prioridade 1: marcado como AAC (comunicação aumentativa)
+  const aac = arr.find(d => d.aac === true);
+  if (aac) return aac._id;
+  // Prioridade 2: marcado como aacColor
+  const aacC = arr.find(d => d.aacColor === true);
+  if (aacC) return aacC._id;
+  // Prioridade 3: keyword do tipo 1 (keyword principal, não sinônimo/gíria)
+  const tipo1 = arr.find(d => d.keywords?.some(k => k.type === 1));
+  if (tipo1) return tipo1._id;
+  // Prioridade 4: último item (API ordena por relevância crescente)
+  return arr[arr.length - 1]._id;
+}
 
-async function buscaIdApi(palavra) {
+// ── Busca ID via API + cache ──────────────────────────────────────────────────
+async function buscaId(palavra) {
   const cache = getCache();
   const key = normaliza(palavra);
 
-  // Cache hit
   if (key in cache) return cache[key];
 
-  // Tenta dicionário local primeiro (fallback rápido)
-  const dicId = buscaIdLocal(palavra);
-  if (dicId) {
-    cache[key] = dicId;
-    setCache(cache);
-    return dicId;
-  }
-
-  // Busca na API
   try {
     const res = await fetch(`${API_BASE}/pictograms/pt/bestsearch/${encodeURIComponent(key)}`);
     if (res.ok) {
       const data = await res.json();
-      const id = data?._id || null;
+      const id = melhorResultado(data);
       cache[key] = id;
       setCache(cache);
       return id;
     }
-  } catch (e) {
-    // API indisponível — usa dicionário local
+  } catch (e) { /* sem internet ou CORS — tenta dicionário local */ }
+
+  // Fallback: dicionário local (IDs verificados)
+  for (const [k, v] of Object.entries(DIC)) {
+    if (normaliza(k) === key) {
+      cache[key] = v;
+      setCache(cache);
+      return v;
+    }
   }
 
-  // Não encontrado
   cache[key] = null;
   setCache(cache);
   return null;
 }
 
-// Fallback: dicionário local com IDs verificados manualmente
-function buscaIdLocal(palavra) {
-  const p = normaliza(palavra);
-  // Busca exata
-  for (const [k, v] of Object.entries(DIC)) {
-    if (normaliza(k) === p) return v;
-  }
-  return null;
-}
-
-// ── Tokenizador ───────────────────────────────────────────────────────────────
-
+// ── Tokenizador (suporta expressões compostas do dicionário) ──────────────────
 function tokeniza(frase) {
   const palavras = frase.trim().split(/\s+/);
   const resultado = [];
   let i = 0;
   while (i < palavras.length) {
-    // Tenta expressões compostas (3 e 2 palavras) primeiro
     let matched = false;
     for (let len = 3; len >= 2; len--) {
       if (i + len <= palavras.length) {
-        const cand = palavras.slice(i, i + len).join(' ').toLowerCase();
-        if (DIC[cand] !== undefined || buscaIdLocal(cand)) {
-          resultado.push({ texto: palavras.slice(i, i+len).join(' '), composta: true });
+        const cand = normaliza(palavras.slice(i, i + len).join(' '));
+        if (Object.keys(DIC).some(k => normaliza(k) === cand)) {
+          resultado.push(palavras.slice(i, i + len).join(' '));
           i += len; matched = true; break;
         }
       }
     }
     if (!matched) {
-      const limpa = palavras[i].replace(/[,\.!?;:]/g,'');
-      resultado.push({ texto: limpa, composta: false });
+      resultado.push(palavras[i].replace(/[,\.!?;:]/g, ''));
       i++;
     }
   }
   return resultado;
 }
 
-// ── Renderizar bloco de pictograma ────────────────────────────────────────────
-
+// ── Criar bloco visual ────────────────────────────────────────────────────────
 function criaBloco(texto, id, isStop, idx, sz, showLbl, colorBorder, colorBg) {
   const bloco = document.createElement('div');
   bloco.className = 'bloco';
@@ -116,8 +111,8 @@ function criaBloco(texto, id, isStop, idx, sz, showLbl, colorBorder, colorBg) {
     img.alt = texto;
     img.style.width = img.style.height = (sz - 12) + 'px';
     img.onerror = () => {
-      wrap.style.cssText += ';border:1.5px dashed #ccc;background:#fafafa';
       wrap.innerHTML = `<span style="font-size:11px;color:#bbb;padding:6px;text-align:center;line-height:1.3">${texto}</span>`;
+      wrap.style.border = '1.5px dashed #ccc';
     };
     wrap.appendChild(img);
     bloco.appendChild(wrap);
@@ -149,12 +144,10 @@ function criaBloco(texto, id, isStop, idx, sz, showLbl, colorBorder, colorBg) {
     lbl.textContent = texto;
     bloco.appendChild(lbl);
   }
-
   return bloco;
 }
 
 // ── GERAR ─────────────────────────────────────────────────────────────────────
-
 async function gerar() {
   const frase = $('inp').value.trim();
   if (!frase) return;
@@ -168,52 +161,40 @@ async function gerar() {
   const inner = $('inner');
   inner.innerHTML = '';
   $('boardWrap').style.display = 'none';
-
-  // Filtra stopwords
-  const tokensComInfo = tokens.map(t => ({
-    ...t,
-    isStop: STOPWORDS.has(normaliza(t.texto))
-  }));
-
-  const paraApi = tokensComInfo.filter(t => !t.isStop).map(t => t.texto);
-  const total = paraApi.length;
-
-  setSt(`Buscando pictogramas (0/${total})...`);
   $('btnGerar').disabled = true;
 
-  // Busca todos os IDs em paralelo
+  const isStopArr = tokens.map(t => STOPWORDS.has(normaliza(t)));
+  const totalConteudo = isStopArr.filter(s => !s).length;
   let resolvidos = 0;
-  const ids = await Promise.all(
-    tokensComInfo.map(async (t) => {
-      if (t.isStop) return null;
-      const id = await buscaIdApi(t.texto);
-      resolvidos++;
-      setSt(`Buscando pictogramas (${resolvidos}/${total})...`);
-      return id;
-    })
-  );
+
+  setSt(`Buscando pictogramas (0/${totalConteudo})...`);
+
+  const ids = await Promise.all(tokens.map(async (t, i) => {
+    if (isStopArr[i]) return null;
+    const id = await buscaId(t);
+    resolvidos++;
+    setSt(`Buscando pictogramas (${resolvidos}/${totalConteudo})...`);
+    return id;
+  }));
 
   $('btnGerar').disabled = false;
 
   let encontrados = 0;
-  tokensComInfo.forEach((t, i) => {
-    const id = ids[i];
-    if (id) encontrados++;
-    inner.appendChild(criaBloco(t.texto, id, t.isStop, i, sz, showLbl, colorBorder, colorBg));
+  tokens.forEach((t, i) => {
+    if (ids[i]) encontrados++;
+    inner.appendChild(criaBloco(t, ids[i], isStopArr[i], i, sz, showLbl, colorBorder, colorBg));
   });
 
   $('fraseTexto').textContent = frase;
   $('fraseTexto').className = 'frase-texto visible';
   $('boardWrap').style.display = 'block';
-
-  setSt(total > 0 ? `${encontrados} de ${total} palavras com pictograma encontrado` : '');
+  setSt(totalConteudo > 0 ? `${encontrados} de ${totalConteudo} palavras com pictograma encontrado` : '');
 
   salvarHistorico(frase);
   renderHistorico();
 }
 
 // ── Salvar imagem ─────────────────────────────────────────────────────────────
-
 async function salvar() {
   setSt('Gerando imagem, aguarde...');
   try {
@@ -231,11 +212,10 @@ async function salvar() {
 }
 
 // ── Histórico ─────────────────────────────────────────────────────────────────
-
 function salvarHistorico(frase) {
   let h = getHistorico().filter(f => f !== frase);
   h.unshift(frase);
-  try { localStorage.setItem(HISTORICO_KEY, JSON.stringify(h.slice(0,10))); } catch {}
+  try { localStorage.setItem(HISTORICO_KEY, JSON.stringify(h.slice(0, 10))); } catch {}
 }
 function getHistorico() {
   try { return JSON.parse(localStorage.getItem(HISTORICO_KEY)) || []; } catch { return []; }
@@ -251,7 +231,7 @@ function renderHistorico() {
     item.className = 'hist-item';
     const span = document.createElement('span');
     span.textContent = frase;
-    span.onclick = () => { $('inp').value = frase; gerar(); window.scrollTo({top:0,behavior:'smooth'}); };
+    span.onclick = () => { $('inp').value = frase; gerar(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
     const del = document.createElement('button');
     del.className = 'hist-del'; del.textContent = '×'; del.title = 'Remover';
     del.onclick = e => {
