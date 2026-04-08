@@ -13,7 +13,8 @@ function setSt(txt) {
 }
 
 function imgUrl(id) {
-  return `https://static.arasaac.org/pictograms/${id}/${id}_300.png`;
+  // Endpoint oficial da API ARASAAC que retorna a imagem diretamente
+  return `https://api.arasaac.org/v1/pictograms/${id}?download=false`;
 }
 
 // Normaliza texto: minúsculas, sem acentos, sem pontuação
