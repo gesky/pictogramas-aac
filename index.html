@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pictogramas AAC</title>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#ffffff"/>
+  <meta name="description" content="Gerador de pictogramas ARASAAC para comunicação aumentativa e alternativa"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="7" fill="#4A90D9"/>
+        <rect x="4" y="4" width="9" height="9" rx="2" fill="white" opacity="0.9"/>
+        <rect x="15" y="4" width="9" height="9" rx="2" fill="white" opacity="0.9"/>
+        <rect x="4" y="15" width="9" height="9" rx="2" fill="white" opacity="0.9"/>
+        <rect x="15" y="15" width="9" height="9" rx="2" fill="white" opacity="0.6"/>
+      </svg>
+      <span>Pictogramas AAC</span>
+    </div>
+    <div class="header-right">
+      <span class="badge">ARASAAC</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="card input-card">
+    <label class="input-label">Digite a frase</label>
+    <div class="input-row">
+      <input type="text" id="inp" placeholder="Ex: eu quero comer banana" autocomplete="off" spellcheck="false"/>
+      <button id="btnGerar" onclick="gerar()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Gerar
+      </button>
+    </div>
+
+    <div class="opcoes">
+      <label class="opt-group">
+        Tamanho
+        <select id="sz">
+          <option value="90">Pequeno</option>
+          <option value="120" selected>Médio</option>
+          <option value="160">Grande</option>
+        </select>
+      </label>
+      <label class="opt-check"><input type="checkbox" id="chkL" checked/> Mostrar palavra</label>
+      <label class="opt-check"><input type="checkbox" id="chkC"/> Bordas coloridas</label>
+      <label class="opt-check"><input type="checkbox" id="chkBg"/> Fundo colorido</label>
+    </div>
+  </div>
+
+  <div id="stWrap" class="status-wrap" style="display:none">
+    <span id="st"></span>
+  </div>
+
+  <div id="boardWrap" style="display:none">
+    <div class="card board-card" id="board">
+      <div class="inner" id="inner"></div>
+      <div class="frase-texto" id="fraseTexto"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" onclick="salvar()">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1v9M3 6.5l4.5 4.5 4.5-4.5M1 11v1a2 2 0 002 2h9a2 2 0 002-2v-1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Salvar como imagem
+      </button>
+      <button class="btn-secondary" onclick="limpar()">Limpar</button>
+    </div>
+
+    <p class="credito">Pictogramas de Sergio Palao para <a href="https://arasaac.org" target="_blank">ARASAAC</a> — Governo de Aragão. Licença CC BY-NC-SA.</p>
+  </div>
+
+  <div class="historico-wrap" id="histWrap" style="display:none">
+    <div class="historico-titulo">Frases recentes</div>
+    <div id="histLista"></div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="dic.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
